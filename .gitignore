@@ -1,4 +1,8 @@
 .env
+token.txt
+
+config.json
+
 package-lock.json
 package.json
 node_modules
