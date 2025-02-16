@@ -1,11 +1,30 @@
-const { Client, GuildMember, Intents } = require("discord.js");
 const { Player, QueryType } = require("discord-player");
 const config = require("./config.json");
+const { ApplicationCommandOptionType } = require("discord-api-types/v10");
+
+
+
+const { Client, GatewayIntentBits } = require("discord.js");
 
 const client = new Client({
-    intents: [Intents.FLAGS.GUILD_VOICE_STATES, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILDS]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildVoiceStates
+    ]
 });
+
 client.login(config.token);
+
+
+
+
+
+
+
+
+
+
 
 
 client.once('ready', () => {
@@ -17,11 +36,11 @@ client.once('ready', () => {
 
 const player = new Player(client);
 
-player.on("error:0", (queue, error) => {
+player.on("error:", (queue, error) => {
     console.log(`[${queue.guild.name}] Error from the queue : ${error.message}`);
 });
 
-player.on("connectionError 501" , (queue,error) =>{
+player.on("connectionError" , (queue,error) =>{
     console.log(`[${queue.guild.name}] ERROR FROM connection: ${error.message}`);
 
 });
@@ -46,36 +65,32 @@ player.on("queueEnd", (queue) => {
     queue.metadata.send("✅ | Queue finished!");
 });
 
-client.on("messageCreate" , async (message) {
+client.on("messageCreate" , async (message) => {
     if(message.author.bot || !message.guild) return;
     if(!client.application?.owner) await client.application?.fetch();
 
     if(message.content === "!deploy" && message.author.id === client.application.owner?.id) {
-        await message.guild.commands.set([
-            {
+        await message.guild.commands.set([{
             name: "play",
             description: "Plays a Song from YT or ...",
-            Option:[{
+            option:[{
                 name:"query",
-                type: "STRING",
+                type: ApplicationCommandOptionType.String,
                 description: "The song you want to play :)",
                 required:true
             }]
-        },
-        
-        {
+        },{
             name:"skip",
             description: "Skip to the new song"
-        },
-        
-        {
+        },{
             name:"stop",
             description: "Stop the player"
         },
     ]);
-
-    await message.reply("Deployed!");
+        await message.reply("Deployed!");
 
     }
 });
+
+
 
