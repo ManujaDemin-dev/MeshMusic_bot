@@ -33,25 +33,24 @@ if (fs.existsSync(commandsPath) && fs.statSync(commandsPath).isDirectory()) {
     console.error(`[ERROR] The 'commands' folder is missing or is not a directory.`);
 }
 
-// Fixing events path
-const eventsPath = path.join(__dirname, 'commands');
 
-if (fs.existsSync(eventsPath) && fs.statSync(eventsPath).isDirectory()) {
-    const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+// Interaction Event for Slash Commands
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isCommand()) return;
 
-    for (const file of eventFiles) {
-        const filePath = path.join(eventsPath, file);
-        const event = require(filePath);
-
-        if (event.once) {
-            client.once(event.name, (...args) => event.execute(...args));
-        } else {
-            client.on(event.name, (...args) => event.execute(...args));
-        }
+    const command = client.commands.get(interaction.commandName);
+    if (!command) {
+        console.error(`❌ No command found for ${interaction.commandName}`);
+        return;
     }
-} else {
-    console.error(`[ERROR] The 'events' folder is missing or is not a directory.`);
-}
+
+    try {
+        await command.execute(interaction);
+    } catch (error) {
+        console.error(error);
+        await interaction.reply({ content: '❌ An error occurred while executing this command!', ephemeral: true });
+    }
+});
 
 
 
