@@ -1,44 +1,37 @@
-const {REST} = require('@discordjs/rest');
-const  {Routes} = require('discord-api-types/v10');
-const {token} = require('../config.json');
-
+const { REST, Routes } = require('discord.js');
+const { clientId, guildId, token } = require('../config.json');
 const fs = require('node:fs');
-const { version } = require('node:os');
+const path = require('node:path');
 
-const clientId = '1340284056977412097';
-const guildId = '';
+const commands = [];
+const commandsPath = path.join(__dirname, '../commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-module.exports = (client) => {
-    client.handleCommands = async (commandFolders , path) => {
-        client.commandArray = [];
-        for(folder of commandFolders){
-            const commandFiles = fs.readdirSync(`${path}/${floder}`).filter(file => file.endsWith('.js'));
-            for(const file of commandFiles){
-                const command = require(`../commands/${folder}/${file}`);
-                client.commands.set(command.data.name, command);
-                client.commandArray.push(command.data.toJSON());
-
-            }
-        }
-
-        const rest = new REST({
-            version: '10'
-
-        }).setToken('token');
-
-
-        (async () => {
-            try{
-                console.log('Started regreshing application commands. ');
-                await rest.put(
-                    Routes.applicationCommand(clientId), {
-                        body: client.commandArray
-                    },
-                );
-                console.log('successfully doneeewss');
-            }catch (error) {
-                console.error(error);
-            }
-        });
+// Dynamically load all commands
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const command = require(filePath);
+    if ('data' in command && 'execute' in command) {
+        commands.push(command.data.toJSON());
+    } else {
+        console.log(`[WARNING] The command at ${filePath} is missing "data" or "execute".`);
     }
 }
+
+const rest = new REST({ version: '10' }).setToken(token);
+
+// Deploy commands
+(async () => {
+    try {
+        console.log(`Started refreshing ${commands.length} application (/) commands.`);
+
+        await rest.put(
+            Routes.applicationGuildCommands(clientId, guildId),
+            { body: commands },
+        );
+
+        console.log('✅ Successfully reloaded application (/) commands.');
+    } catch (error) {
+        console.error(error);
+    }
+})();
