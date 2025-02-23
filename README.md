@@ -1,6 +1,6 @@
 # 🎵 MeshMusic - Discord Music Bot
 
-
+*MeshMusic* is an open-source Discord music bot built with **Discord.js**. It supports high-quality music streaming using **Lavalink**, a queue system for managing tracks.
 > *MeshMusic* is an open-source Discord music bot built with **Discord.js**. It supports high-quality music streaming using **Lavalink**, a queue system for managing tracks.
 
 ---
