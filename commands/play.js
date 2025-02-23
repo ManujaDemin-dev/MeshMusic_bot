@@ -1,90 +1,83 @@
-const { SlashCommandBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, entersState, VoiceConnectionStatus } = require('@discordjs/voice');
-const ytdl = require('ytdl-core');
-const { spawn } = require('child_process');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('play')
-    .setDescription('Plays a YouTube video in a voice channel')
+    .setDescription('Play a song from any supported source.')
     .addStringOption(option =>
-      option.setName('url')
-        .setDescription('The URL of the YouTube video')
-        .setRequired(true)),
+      option
+        .setName('search')
+        .setDescription('The song to play')
+        .setRequired(true)
+    ),
 
-  async execute(interaction) {
-    const url = interaction.options.getString('url');
-    const channel = interaction.member.voice.channel;
-
-    if (!channel) {
-      return interaction.reply('❌ You need to be in a voice channel to use this command!');
-    }
-
-    // Check if the bot has the necessary permissions in the voice channel
-    const botMember = interaction.guild.members.me; // Get the bot's member object
-    if (!botMember || !botMember.permissions.has('CONNECT') || !botMember.permissions.has('SPEAK')) {
-      return interaction.reply('❌ I need permission to join and speak in the voice channel!');
-    }
-
-    await interaction.deferReply();
-
+  async execute(interaction, client) {
     try {
-      console.log('🔌 Joining voice channel...');
-      const connection = joinVoiceChannel({
-        channelId: channel.id,
-        guildId: channel.guild.id,
-        adapterCreator: channel.guild.voiceAdapterCreator,
+      const search = interaction.options.getString('search');
+      const { channel } = interaction.member.voice;
+
+
+      if (!channel) {
+        return interaction.reply({
+          content: 'You need to be in a voice channel to play music!',
+          ephemeral: true,
+        });
+      }
+
+      await interaction.reply({ content: ' Searching for your song...' });
+
+      
+      const player = await client.manager.createPlayer({
+        guildId: interaction.guildId,
+        textId: interaction.channel.id,
+        voiceId: channel.id,
+        volume: 100,
       });
 
-      await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
-      console.log('✅ Voice connection ready.');
+      
+      const res = await player.search(search, { requester: interaction.user });
 
-      console.log('🔗 Attempting to stream YouTube audio...');
-      const youtubeStream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
 
-      youtubeStream.on('error', (err) => console.error(`❗ YTDL Error: ${err.message}`));
+      if (!res.tracks.length) {
+        return interaction.editReply({ content: '❌ No results found for your search.' });
+      }
 
-      const ffmpeg = spawn('ffmpeg', [
-        '-i', 'pipe:0',
-        '-f', 's16le',
-        '-ar', '48000',
-        '-ac', '2',
-        'pipe:1'
-      ]);
+      // 📜 Playlist handling
+      if (res.type === 'PLAYLIST') {
+        res.tracks.forEach(track => player.queue.add(track));
+        if (!player.playing && !player.paused) player.play();
 
-      ffmpeg.stderr.on('data', (data) => console.error(`⚠️ FFmpeg Error: ${data}`));
-      ffmpeg.on('close', (code) => console.log(`📦 FFmpeg exited with code ${code}`));
+        const embed = new EmbedBuilder()
+          .setColor('#1DB954')
+          .setTitle('🎵 Playlist added to the queue!')
+          .setDescription(`**[${res.playlistName}](${search})**\nQueued ${res.tracks.length} tracks.`)
+          .setFooter({ text: 'Enjoy your music! 🎶' });
 
-      youtubeStream.pipe(ffmpeg.stdin);
+        return interaction.editReply({ embeds: [embed] });
+      } else {
+        // 🎧 Single track handling
+        player.queue.add(res.tracks[0]);
+        if (!player.playing && !player.paused) player.play();
 
-      const resource = createAudioResource(ffmpeg.stdout, {
-        inputType: undefined, // Adjust if needed
-      });
+        const embed = new EmbedBuilder()
+          .setColor('#90ee90')
+          .setTitle('Now Playing')
+          .setDescription(`[${res.tracks[0].title}](${res.tracks[0].uri})`)
+          .setFooter({ text: 'Enjoy the music.' })
+          .setTimestamp();
 
-      const player = createAudioPlayer();
-      console.log('🎛️ Audio player created.');
-
-      player.play(resource);
-      connection.subscribe(player);
-
-      player.on(AudioPlayerStatus.Playing, () => {
-        console.log(`🎵 Now playing: ${url}`);
-        interaction.followUp(`🎧 Now playing: ${url}`);
-      });
-
-      player.on('error', error => {
-        console.error(`❗ Player Error: ${error.message}`);
-        interaction.followUp(`⚡ Player error: ${error.message}`);
-      });
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        console.log('🛑 Audio player idle. Disconnecting.');
-        connection.destroy();
-      });
-
+        return interaction.editReply({ embeds: [embed] });
+      }
     } catch (error) {
-      console.error(`💥 Critical Error: ${error.stack}`);
-      await interaction.followUp('🚨 Error occurred while trying to play audio. Check console for details.');
+      console.error(error);
+
+      if (interaction.replied || interaction.deferred) {
+        return interaction.editReply({ content: 'An error occurred while trying to play the song.' });
+      } else {
+        return interaction.reply({ content: 'An error occurred while trying to play the song.', ephemeral: true });
+      }
     }
-  }
+  },
 };
+
+
